@@ -2,6 +2,7 @@ package com.example.listofcomputers;
 
 import static com.example.listofcomputers.MainActivity.adapter;
 import static com.example.listofcomputers.MainActivity.dataItems;
+import static com.example.listofcomputers.MainActivity.listView;
 import static com.example.listofcomputers.MainActivity.serverAccessor;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -29,10 +30,10 @@ import android.Manifest;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
+import android.os.Handler;
 public class MainActivity extends AppCompatActivity {
 
-    private static ListView listView;
+    static ListView listView;
     static ArrayAdapter adapter;
     static ArrayList<Computer> dataItems;
     private Fragment_info infoFragment;
@@ -62,7 +63,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         //Запуск фоновой задачи
-        ProgressTask progressTask = new ProgressTask();
+        Handler handler = new Handler(getMainLooper());
+        ProgressTask progressTask = new ProgressTask(handler, this); // Передайте контекст
         executorService.submit(progressTask);
 
         FragmentManager fragmentManager = getSupportFragmentManager();
@@ -115,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<String> stringList = serverAccessor.getStringListFromNoteList(list);
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, dataItems);
         // установить адаптер в listview
-        MainActivity.listView.setAdapter(adapter);
+        listView.setAdapter(adapter);
         return adapter;
     }
 
@@ -126,7 +128,17 @@ public class MainActivity extends AppCompatActivity {
                 >= Configuration.SCREENLAYOUT_SIZE_LARGE;
     }
 }
+
+
 class ProgressTask implements Runnable {
+    private Handler handler;
+    private Context context; // Добавьте поле для хранения ссылки на Context
+
+    public ProgressTask(Handler handler, Context context) {
+        this.handler = handler;
+        this.context = context;
+    }
+
     String connectionError = null;
 
     @Override
@@ -135,14 +147,14 @@ class ProgressTask implements Runnable {
             // выполнение в фоне
             dataItems = serverAccessor.getData();
 
-            // Обновление UI осуществляется в основном потоке
-            runOnUiThread(new Runnable() {
+            // Обновление UI через Handler
+            handler.post(new Runnable() {
                 @Override
                 public void run() {
                     if (connectionError == null) {
                         adapter = AdapterUpdate(dataItems);
                     } else {
-                        //проблемы с интернетом
+                        // обработка ошибки подключения
                     }
                 }
             });
@@ -150,5 +162,13 @@ class ProgressTask implements Runnable {
         } catch (Exception ex) {
             connectionError = ex.getMessage();
         }
+    }
+
+    private ArrayAdapter<String> AdapterUpdate(ArrayList<Computer> list) {
+        ArrayList<String> stringList = serverAccessor.getStringListFromNoteList(list);
+        adapter = new ArrayAdapter<>(context, android.R.layout.simple_list_item_1, stringList);
+        // установить адаптер в listview
+        listView.setAdapter(adapter);
+        return adapter;
     }
 }
